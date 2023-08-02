@@ -1,1 +1,133 @@
-{"metadata":{"kernelspec":{"language":"python","display_name":"Python 3","name":"python3"},"language_info":{"pygments_lexer":"ipython3","nbconvert_exporter":"python","version":"3.6.4","file_extension":".py","codemirror_mode":{"name":"ipython","version":3},"name":"python","mimetype":"text/x-python"}},"nbformat_minor":4,"nbformat":4,"cells":[{"cell_type":"code","source":"# %% [code]\n# This Python 3 environment comes with many helpful analytics libraries installed\n# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python\n# For example, here's several helpful packages to load\n\nimport numpy as np # linear algebra\nimport pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\nimport networkx as nx\nimport matplotlib.pyplot as plt\n\n# Input data files are available in the read-only \"../input/\" directory\n# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory\n\nimport os\nfor dirname, _, filenames in os.walk('/kaggle/input'):\n    for filename in filenames:\n        print(os.path.join(dirname, filename))\n\n# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using \"Save & Run All\" \n# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session\n\n# %% [code]\n\n\ndf = pd.read_csv('/kaggle/working/embed_data/refine_dataset.csv')\ndef sigmoid(x):\n return 1/(1 + np.exp(-x))\n\nz_diff_sqr = df['z_diff_sqr']\nt_diff_sqr = df['time_diff_sqr']\n\ndef spatial_temporal_sigmoid(z_diff_sqr,time_diff_sqr,spatial_weight, temporal_weight):\n  \"\"\"Returns a sigmoid function value that is high if two hits are spatially and temporally close and low otherwise.\"\"\"\n\n  spatial_term = sigmoid(spatial_weight / z_diff_sqr)\n  temporal_term = sigmoid(temporal_weight / (time_diff_sqr+.00001))\n#   if (z_diff_sqr [0]< 0.0001):\n#     return 0\n  return spatial_term * temporal_term\n\ndf[\"prob\"] = spatial_temporal_sigmoid(df[\"z_diff_sqr\"],df[\"time_diff_sqr\"],100,1)\n# df['class_label'] = df.apply(class_label, axis=1)\ndf.to_csv(\"/kaggle/working/embed_data/dataset_refinement_test.csv\", index=False)\ndf\n\n# %% [code]\n# Create the \"plots\" folder if it doesn't exist\noutput_folder = '/kaggle/working/plots'\nos.makedirs(output_folder, exist_ok=True)\n\n# Load the dataset\ndf = pd.read_csv('/kaggle/working/dataset_refinement_test1.csv')\n\n# Create a graph with all edges between query point and nearest neighbors\ngraph_all_edges = nx.Graph()\nfor _, row in df.iterrows():\n    graph_all_edges.add_edge(\"Query\", row['nearest_neighbors'])\n\n# Create a graph with edges only between query point and nearest neighbors with probability > 0.5\ngraph_filtered_edges = nx.Graph()\nfor _, row in df[df['prob'] > 0.51].iterrows():\n    graph_filtered_edges.add_edge(\"Query\", row['nearest_neighbors'])\n\n# Set the positions of the nodes for visualization\npos = nx.spring_layout(graph_all_edges)\n\n# Extract muonID_neighbor from the DataFrame\nmuonID_dict = dict(df[['nearest_neighbors', 'muonID_neighbor']].values)\n\n# Create a color map for node colors based on muonID_neighbor\nunique_muonID_neighbors = df['muonID_neighbor'].unique()\ncolors = plt.cm.viridis(np.linspace(0, 1, len(unique_muonID_neighbors)))\nmuonID_color_map = dict(zip(unique_muonID_neighbors, colors))\n\n# Draw the first graph with all edges\nplt.figure(figsize=(10, 8))\nnode_colors_all_edges = [muonID_color_map[muonID_dict[node]] if node in muonID_dict else 'red' for node in graph_all_edges.nodes]\nnx.draw(graph_all_edges, pos, with_labels=True, labels=muonID_dict, node_color=node_colors_all_edges, node_size=200, font_size=10, font_weight='bold', font_color = 'white')\nnx.draw_networkx_nodes(graph_all_edges, pos, nodelist=['Query'], node_color='red', node_size=2000)\nnx.draw_networkx_nodes(graph_all_edges, pos, nodelist=graph_all_edges.nodes()-{'Query'}, node_color=[muonID_color_map[muonID_dict[node]] for node in graph_all_edges.nodes()-{'Query'}], node_size=800)\nplt.title(\"Graph with All Edges\")\nplt.savefig(os.path.join(output_folder, 'graph_direct_edges_muon_details.png'))\nplt.close()\nplt.show()\n\n# Draw the second graph with filtered edges\nplt.figure(figsize=(10, 8))\nnode_colors_filtered_edges = [muonID_color_map[muonID_dict[node]] if node in muonID_dict else 'red' for node in graph_filtered_edges.nodes]\nnx.draw(graph_filtered_edges, pos, with_labels=True, labels=muonID_dict, node_color=node_colors_filtered_edges, node_size=200, font_size=10, font_weight='bold', font_color = 'white')\nnx.draw_networkx_nodes(graph_filtered_edges, pos, nodelist=['Query'], node_color='red', node_size=2000)\nnx.draw_networkx_nodes(graph_filtered_edges, pos, nodelist=graph_filtered_edges.nodes()-{'Query'}, node_color=[muonID_color_map[muonID_dict[node]] for node in graph_filtered_edges.nodes()-{'Query'}], node_size=800)\nplt.title(\"Graph with Edges (prob > 0.5)\")\nplt.savefig(os.path.join(output_folder, 'graph_refined.png'))\nplt.close()\nplt.show()\n\nlen(num_edges_filtered)\n\n# %% [code]\n\n\n# Load the dataset\ndf = pd.read_csv('/kaggle/working/dataset_refinement_test1.csv')\n\n# Create a graph with edges only between query point and nearest neighbors with probability > 0.5\ngraph_filtered_edges = nx.Graph()\nfor _, row in df[df['prob'] > 0.51].iterrows():\n    graph_filtered_edges.add_edge(\"Query\", row['nearest_neighbors'])\n\n# Count the number of edges in the filtered graph\nnum_edges_filtered = graph_filtered_edges.number_of_edges()\n\n# Print the number of edges in the filtered graph\nprint(\"Number of edges in the filtered graph:\", num_edges_filtered)\n\n# Load the other dataset (replace 'other_dataset.csv' with the actual filename)\nother_df = pd.read_csv('/kaggle/input/data-sets/RecoOutPileup_TimeMod_uniform_1_recohitfile_training_data.csv')\n\n\n# Step 2: Calculate the number of rows in the refined dataset where muonID_query is equal to muonID_neighbor\nnum_rows_refined_dataset = df[df['muonID_query'] == df['muonID_query']].shape[0]\n\n# Step 3: Calculate the number of rows in the real dataset where muonID is equal to the muonID_neighbor in the filtered graph\nnum_rows_real_dataset = other_df[other_df['muonID1'].isin(df['muonID_query'])].shape[0]\n\n# Step 4: Calculate the graph reconstruction efficiency\ngraph_reconstruction_efficiency = num_edges_filtered / num_rows_refined_dataset\n\n# Step 5: Calculate the track reconstruction efficiency\ntrack_reconstruction_efficiency = num_edges_filtered / num_rows_real_dataset\n\nprint(\"Graph Reconstruction Efficiency:\", graph_reconstruction_efficiency)\nprint(\"Track Reconstruction Efficiency:\", track_reconstruction_efficiency)\n\n\n# %% [code]\n\n\n# %% [code]\n","metadata":{"_uuid":"17740f1a-6835-466b-9f18-9723c0d2f9f2","_cell_guid":"d259a9d6-7626-400c-87c1-ac9e9f9023f5","collapsed":false,"jupyter":{"outputs_hidden":false},"trusted":true},"execution_count":null,"outputs":[]}]}
+# %% [code] {"jupyter":{"outputs_hidden":false}}
+# This Python 3 environment comes with many helpful analytics libraries installed
+# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python
+# For example, here's several helpful packages to load
+
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+import networkx as nx
+import matplotlib.pyplot as plt
+
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+
+# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using "Save & Run All" 
+# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session
+
+# %% [code] {"jupyter":{"outputs_hidden":false}}
+
+
+df = pd.read_csv('/kaggle/working/embed_data/refine_dataset.csv')
+def sigmoid(x):
+ return 1/(1 + np.exp(-x))
+
+z_diff_sqr = df['z_diff_sqr']
+t_diff_sqr = df['time_diff_sqr']
+
+def spatial_temporal_sigmoid(z_diff_sqr,time_diff_sqr,spatial_weight, temporal_weight):
+  """Returns a sigmoid function value that is high if two hits are spatially and temporally close and low otherwise."""
+
+  spatial_term = sigmoid(spatial_weight / z_diff_sqr)
+  temporal_term = sigmoid(temporal_weight / (time_diff_sqr+.00001))
+#   if (z_diff_sqr [0]< 0.0001):
+#     return 0
+  return spatial_term * temporal_term
+
+df["prob"] = spatial_temporal_sigmoid(df["z_diff_sqr"],df["time_diff_sqr"],100,1)
+# df['class_label'] = df.apply(class_label, axis=1)
+df.to_csv("/kaggle/working/embed_data/dataset_refinement_test.csv", index=False)
+df
+
+# %% [code] {"jupyter":{"outputs_hidden":false}}
+# Create the "plots" folder if it doesn't exist
+output_folder = '/kaggle/working/plots'
+os.makedirs(output_folder, exist_ok=True)
+
+# Load the dataset
+df = pd.read_csv('/kaggle/working/dataset_refinement_test1.csv')
+
+# Create a graph with all edges between query point and nearest neighbors
+graph_all_edges = nx.Graph()
+for _, row in df.iterrows():
+    graph_all_edges.add_edge("Query", row['nearest_neighbors'])
+
+# Create a graph with edges only between query point and nearest neighbors with probability > 0.5
+graph_filtered_edges = nx.Graph()
+for _, row in df[df['prob'] > 0.51].iterrows():
+    graph_filtered_edges.add_edge("Query", row['nearest_neighbors'])
+
+# Set the positions of the nodes for visualization
+pos = nx.spring_layout(graph_all_edges)
+
+# Extract muonID_neighbor from the DataFrame
+muonID_dict = dict(df[['nearest_neighbors', 'muonID_neighbor']].values)
+
+# Create a color map for node colors based on muonID_neighbor
+unique_muonID_neighbors = df['muonID_neighbor'].unique()
+colors = plt.cm.viridis(np.linspace(0, 1, len(unique_muonID_neighbors)))
+muonID_color_map = dict(zip(unique_muonID_neighbors, colors))
+
+# Draw the first graph with all edges
+plt.figure(figsize=(10, 8))
+node_colors_all_edges = [muonID_color_map[muonID_dict[node]] if node in muonID_dict else 'red' for node in graph_all_edges.nodes]
+nx.draw(graph_all_edges, pos, with_labels=True, labels=muonID_dict, node_color=node_colors_all_edges, node_size=200, font_size=10, font_weight='bold', font_color = 'white')
+nx.draw_networkx_nodes(graph_all_edges, pos, nodelist=['Query'], node_color='red', node_size=2000)
+nx.draw_networkx_nodes(graph_all_edges, pos, nodelist=graph_all_edges.nodes()-{'Query'}, node_color=[muonID_color_map[muonID_dict[node]] for node in graph_all_edges.nodes()-{'Query'}], node_size=800)
+plt.title("Graph with All Edges")
+plt.savefig(os.path.join(output_folder, 'graph_direct_edges_muon_details.png'))
+plt.close()
+plt.show()
+
+# Draw the second graph with filtered edges
+plt.figure(figsize=(10, 8))
+node_colors_filtered_edges = [muonID_color_map[muonID_dict[node]] if node in muonID_dict else 'red' for node in graph_filtered_edges.nodes]
+nx.draw(graph_filtered_edges, pos, with_labels=True, labels=muonID_dict, node_color=node_colors_filtered_edges, node_size=200, font_size=10, font_weight='bold', font_color = 'white')
+nx.draw_networkx_nodes(graph_filtered_edges, pos, nodelist=['Query'], node_color='red', node_size=2000)
+nx.draw_networkx_nodes(graph_filtered_edges, pos, nodelist=graph_filtered_edges.nodes()-{'Query'}, node_color=[muonID_color_map[muonID_dict[node]] for node in graph_filtered_edges.nodes()-{'Query'}], node_size=800)
+plt.title("Graph with Edges (prob > 0.5)")
+plt.savefig(os.path.join(output_folder, 'graph_refined.png'))
+plt.close()
+plt.show()
+
+len(num_edges_filtered)
+
+# %% [code] {"jupyter":{"outputs_hidden":false}}
+
+
+# Load the dataset
+df = pd.read_csv('/kaggle/working/dataset_refinement_test1.csv')
+
+# Create a graph with edges only between query point and nearest neighbors with probability > 0.5
+graph_filtered_edges = nx.Graph()
+for _, row in df[df['prob'] > 0.51].iterrows():
+    graph_filtered_edges.add_edge("Query", row['nearest_neighbors'])
+
+# Count the number of edges in the filtered graph
+num_edges_filtered = graph_filtered_edges.number_of_edges()
+
+# Print the number of edges in the filtered graph
+print("Number of edges in the filtered graph:", num_edges_filtered)
+
+# Load the other dataset (replace 'other_dataset.csv' with the actual filename)
+other_df = pd.read_csv('/kaggle/input/data-sets/RecoOutPileup_TimeMod_uniform_1_recohitfile_training_data.csv')
+
+
+# Step 2: Calculate the number of rows in the refined dataset where muonID_query is equal to muonID_neighbor
+num_rows_refined_dataset = df[df['muonID_query'] == df['muonID_neighbor']].shape[0]
+
+# Step 3: Calculate the number of rows in the real dataset where muonID is equal to the muonID_neighbor in the filtered graph
+num_rows_real_dataset = other_df[other_df['muonID1'].isin(df['muonID_query'])].shape[0]
+
+# Step 4: Calculate the graph reconstruction efficiency
+graph_reconstruction_efficiency = num_edges_filtered / num_rows_refined_dataset
+
+# Step 5: Calculate the track reconstruction efficiency
+track_reconstruction_efficiency = num_edges_filtered / num_rows_real_dataset
+
+print("Graph Reconstruction Efficiency:", graph_reconstruction_efficiency)
+print("Track Reconstruction Efficiency:", track_reconstruction_efficiency)
