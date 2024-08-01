@@ -8,7 +8,8 @@ Each of the steps in the pipeline can be executed seperated followed by one of t
 These codes are written in Kaggle notebook. This will work in any python platform with some changes.
 
 ## Description
-This repository contains code for performing first few steps of track finding algorithm using three Python scripts: `train_embed.py`, `convert_point_clouds.py`, and `edge_refinement.py`.
+This repository contains code for performing these steps of track finding algorithm using Python scripts: `train_embed.py`, `convert_point_clouds.py`, and `edge_refinement.py`.
+In 'complete-notebook (1).ipynb', all the codes are available to execute these steps.
 
 ## Installation
 1. Clone this repository to your local machine:
@@ -39,6 +40,9 @@ This script is used to convert the data into point clouds. It takes the raw data
 ### `edge_refinement.py`
 This script performs edge refinement on the graphs generated from the previous step. It remove all the nodes which are not part of same track of query point from the graph.
 
+
+### `complete-notebook (1).ipynb'
+In this, all the codes are available to perform the steps. Graph creation can be done using DBSCAN or query point based algorithms. Both are included in the notebook. 'complete-notebook' is the kaggle notebook directly attached.
 
 ## Data Format
 The data for the training scripts should be provided in a CSV file. The CSV file should contain the necessary features and labels for the muon g-2 analysis. One dataset is given here.
